@@ -8,7 +8,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    const csrfres = await axios.get('https://www.clipto.com/api/csrf', {
+    // Ambil token CSRF dari Clipto
+    const csrfRes = await axios.get('https://www.clipto.com/api/csrf', {
       headers: {
         'referer': 'https://www.clipto.com/id/media-downloader/youtube-downloader',
         'user-agent': 'Mozilla/5.0',
@@ -16,12 +17,11 @@ export default async function handler(req, res) {
       }
     });
 
-    const csrftoken = csrfres.data.token;
+    const csrftoken = csrfRes.data.token;
     const cookies = `XSRF-TOKEN=${csrftoken};`;
 
-    const dres = await axios.post('https://www.clipto.com/api/youtube', {
-      url: url
-    }, {
+    // Kirim POST ke Clipto untuk proses download
+    const downloadRes = await axios.post('https://www.clipto.com/api/youtube', { url }, {
       headers: {
         'cookie': cookies,
         'origin': 'https://www.clipto.com',
@@ -33,8 +33,25 @@ export default async function handler(req, res) {
       }
     });
 
-    res.status(200).json(dres.data);
+    const data = downloadRes.data;
+
+    if (!data || !data.streams) {
+      return res.status(500).json({ error: 'Gagal mengambil data dari Clipto' });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      title: data.title,
+      thumbnail: data.thumbnail,
+      duration: data.duration,
+      download: data.streams.map(stream => ({
+        format: stream.format,
+        quality: stream.quality,
+        size: stream.size,
+        url: stream.url
+      }))
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Gagal mengambil video', detail: error.message });
   }
 }
